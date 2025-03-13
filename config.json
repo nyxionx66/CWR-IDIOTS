@@ -1,0 +1,63 @@
+{
+  "bot": {
+    "host": "mc.cwresports.lk",
+    "port": 25565,
+    "username": "TheCona",
+    "__comment": "WeSyphonic",
+    "version": "1.20.1"
+  },
+  "autoEat": {
+    "startAt": 19,
+    "priority": "foodPoints",
+    "bannedFood": [],
+    "cooldown": 5000
+  },
+  "movement": {
+    "followDistance": 1,
+    "lookInterval": 800
+  },
+  "dashboard": {
+    "enabled": true,
+    "port": 3000
+  },
+  "discord": {
+    "token": "MTM0Njg1MzI1Mjk4NTAwMDA3OA.GKre5a.OBtPUbmLoggnlCNFXN1NQKgFpe8PzY--yN0Rvg",
+    "logChannelId": "1319925003151740970",
+    "commandChannelId": "1319925002421932128"
+  },
+  "customCommands": {
+    "rg": "/register sad321 sad321",
+    "lg": "/login sad321",
+    "ls": "/lifesteal",
+    "q1": "/quest start building35p1",
+    "q2": "/quest start building35p2",
+    "q3": "/quest start building35p3",
+    "q4": "/quest start building35p4",
+    "tpa": "/tpa jerseys",
+    "gg": "Good game everyone!",
+    "tj": "/team join Hackora",
+    "tp": "/tpaccept"
+  },
+  "treeBot": {
+    "searchRadius": 50,
+    "climbingBlocks": [
+      "dirt",
+      "cobblestone",
+      "stone"
+    ],
+    "treeTypes": [
+      "oak",
+      "spruce",
+      "birch",
+      "jungle",
+      "acacia",
+      "dark_oak"
+    ]
+  },
+  "aiChat": {
+    "apiKey": "nT9CLWaNm6Y4CCRT3S4XijOvrsZWkhfm"
+  },
+  "blockQuest": {
+    "detailedLogging": false
+  }
+}
