@@ -11,6 +11,8 @@ import blockquestCommand from "./blockquest-command.js";
 import botCommand from './bot-command.js';
 import planCommand from './plan-command.js';
 import attackCommand from './attack-command.js';
+import guiCommand from './gui-command.js';
+import inventoryCommand from './inventory-command.js';
 
 export const commands = [
     helpCommand,
@@ -25,7 +27,9 @@ export const commands = [
     blockquestCommand,
     botCommand,
     planCommand,
-    attackCommand
+    attackCommand,
+    guiCommand,
+    inventoryCommand
 ];
 
 export {
@@ -41,5 +45,7 @@ export {
     blockquestCommand,
     botCommand,
     planCommand,
-    attackCommand
+    attackCommand,
+    guiCommand,
+    inventoryCommand
 };

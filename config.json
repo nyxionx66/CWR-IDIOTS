@@ -2,9 +2,10 @@
   "bot": {
     "host": "mc.cwresports.lk",
     "port": 25565,
-    "username": "TheCona",
+    "username": "jerulll",
     "__comment": "WeSyphonic",
-    "version": "1.20.1"
+    "version": "1.20.1",
+    "useRandomUsername": false
   },
   "autoEat": {
     "startAt": 19,
@@ -28,6 +29,7 @@
   "customCommands": {
     "rg": "/register sad321 sad321",
     "lg": "/login sad321",
+    "d": "/daily open",
     "ls": "/lifesteal",
     "q1": "/quest start building35p1",
     "q2": "/quest start building35p2",

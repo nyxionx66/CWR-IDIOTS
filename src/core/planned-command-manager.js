@@ -1,11 +1,13 @@
 import { Logger } from '../utils/logger.js';
 import schedule from 'node-schedule';
+import cron from 'node-cron';
 
 export class PlannedCommandManager {
     constructor(bot) {
         this.bot = bot;
         this.scheduledCommands = new Map();
         this.tickBasedCommands = new Map();
+        this.sequences = new Map();
         this.tickCount = 0;
         this.tickInterval = 50; // Minecraft tick is 50ms
         this.isRunning = false;
@@ -37,15 +39,10 @@ export class PlannedCommandManager {
     }
 
     /**
-     * Schedule a command to run at specific intervals
+     * Schedule a command or sequence to run
      * @param {string} id - Unique identifier for the command
-     * @param {string} command - Command to execute
+     * @param {string|Array} command - Command(s) to execute
      * @param {Object} options - Scheduling options
-     * @param {number} [options.ticks] - Run every X ticks
-     * @param {string} [options.cron] - Cron expression for scheduling
-     * @param {Date} [options.date] - Specific date/time to run
-     * @param {number} [options.delay] - Delay in milliseconds
-     * @param {boolean} [options.repeat] - Whether to repeat the command
      */
     scheduleCommand(id, command, options = {}) {
         if (!id || !command) {
@@ -63,6 +60,11 @@ export class PlannedCommandManager {
             createdAt: Date.now()
         };
 
+        // Handle command sequences
+        if (Array.isArray(command)) {
+            return this.scheduleSequence(id, command, options);
+        }
+
         if (options.ticks) {
             // Tick-based scheduling
             this.tickBasedCommands.set(id, {
@@ -72,6 +74,11 @@ export class PlannedCommandManager {
             Logger.info(`Scheduled command "${id}" to run every ${options.ticks} ticks`);
         } else if (options.cron) {
             // Cron-based scheduling
+            if (!cron.validate(options.cron)) {
+                Logger.warn(`Invalid cron expression: ${options.cron}`);
+                return false;
+            }
+
             const job = schedule.scheduleJob(options.cron, () => {
                 this.executeCommand(commandObj);
                 if (!options.repeat) {
@@ -107,10 +114,105 @@ export class PlannedCommandManager {
     }
 
     /**
-     * Cancel a scheduled command
+     * Schedule a sequence of commands
+     * @param {string} id - Sequence identifier
+     * @param {Array} commands - Array of command objects
+     * @param {Object} options - Scheduling options
+     */
+    scheduleSequence(id, commands, options = {}) {
+        if (!Array.isArray(commands) || commands.length === 0) {
+            Logger.warn('Invalid command sequence');
+            return false;
+        }
+
+        const sequence = {
+            id,
+            commands: commands.map((cmd, index) => ({
+                command: typeof cmd === 'string' ? cmd : cmd.command,
+                delay: typeof cmd === 'string' ? (index * 1000) : (cmd.delay || index * 1000)
+            })),
+            options,
+            currentIndex: 0,
+            isRunning: false
+        };
+
+        this.sequences.set(id, sequence);
+
+        // Schedule the start of the sequence
+        if (options.cron) {
+            const job = schedule.scheduleJob(options.cron, () => {
+                this.executeSequence(id);
+            });
+            this.scheduledCommands.set(id, { id, job, type: 'sequence' });
+        } else if (options.date) {
+            const job = schedule.scheduleJob(options.date, () => {
+                this.executeSequence(id);
+            });
+            this.scheduledCommands.set(id, { id, job, type: 'sequence' });
+        } else if (options.delay) {
+            const timeout = setTimeout(() => {
+                this.executeSequence(id);
+            }, options.delay);
+            this.scheduledCommands.set(id, { id, timeout, type: 'sequence' });
+        } else {
+            // Start immediately if no timing options
+            this.executeSequence(id);
+        }
+
+        Logger.info(`Scheduled command sequence "${id}" with ${commands.length} commands`);
+        return true;
+    }
+
+    /**
+     * Execute a sequence of commands
+     * @param {string} id - Sequence identifier
+     */
+    async executeSequence(id) {
+        const sequence = this.sequences.get(id);
+        if (!sequence || sequence.isRunning) return;
+
+        sequence.isRunning = true;
+        sequence.currentIndex = 0;
+
+        for (const cmd of sequence.commands) {
+            if (!sequence.isRunning) break; // Check if sequence was cancelled
+
+            // Wait for the specified delay
+            if (cmd.delay > 0) {
+                await new Promise(resolve => setTimeout(resolve, cmd.delay));
+            }
+
+            // Execute the command
+            this.executeCommand({ command: cmd.command });
+            sequence.currentIndex++;
+        }
+
+        sequence.isRunning = false;
+
+        // Handle repeat option
+        if (sequence.options.repeat) {
+            // Schedule the next run
+            const delay = sequence.options.repeatDelay || 1000;
+            setTimeout(() => this.executeSequence(id), delay);
+        } else {
+            this.sequences.delete(id);
+        }
+    }
+
+    /**
+     * Cancel a scheduled command or sequence
      * @param {string} id - Command ID to cancel
      */
     cancelCommand(id) {
+        // Check sequences
+        if (this.sequences.has(id)) {
+            const sequence = this.sequences.get(id);
+            sequence.isRunning = false;
+            this.sequences.delete(id);
+            Logger.info(`Cancelled sequence: ${id}`);
+            return true;
+        }
+
         // Check tick-based commands
         if (this.tickBasedCommands.has(id)) {
             this.tickBasedCommands.delete(id);
@@ -143,17 +245,17 @@ export class PlannedCommandManager {
         try {
             if (this.bot.commandManager) {
                 this.bot.commandManager.executeCommand(commandObj.command);
-                Logger.debug(`Executed scheduled command: ${commandObj.id}`);
+                Logger.debug(`Executed scheduled command: ${commandObj.id || commandObj.command}`);
             } else {
                 Logger.warn(`Cannot execute command: Command manager not available`);
             }
         } catch (error) {
-            Logger.error(`Failed to execute scheduled command ${commandObj.id}: ${error.message}`);
+            Logger.error(`Failed to execute scheduled command ${commandObj.id || ''}: ${error.message}`);
         }
     }
 
     /**
-     * Get all scheduled commands
+     * Get all scheduled commands and sequences
      * @returns {Object} - Object containing all scheduled commands
      */
     getScheduledCommands() {
@@ -170,6 +272,13 @@ export class PlannedCommandManager {
                 options: cmd.options,
                 createdAt: cmd.createdAt,
                 type: cmd.job ? 'cron' : 'delay'
+            })),
+            sequences: Array.from(this.sequences.entries()).map(([id, seq]) => ({
+                id,
+                commands: seq.commands,
+                currentIndex: seq.currentIndex,
+                isRunning: seq.isRunning,
+                options: seq.options
             }))
         };
 
@@ -192,6 +301,9 @@ export class PlannedCommandManager {
 
         // Clear tick-based commands
         this.tickBasedCommands.clear();
+
+        // Clear sequences
+        this.sequences.clear();
 
         this.isRunning = false;
         Logger.debug('Planned command manager cleaned up');

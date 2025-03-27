@@ -243,11 +243,6 @@ export default {
         const messageStr = message.toString().toLowerCase();
 
         // Check for ClearLagg warning messages
-        // Common formats:
-        // "Ground items will be removed in 10 seconds!"
-        // "[ClearLagg] Clearing all entities in 10 seconds"
-        // "Server cleanup in 10 seconds"
-        // "Cleaner » Entities will be removed in 20 seconds!"
         if (
             (messageStr.includes('ground items') && messageStr.includes('removed')) ||
             (messageStr.includes('clearlagg') && messageStr.includes('clearing')) ||
@@ -353,9 +348,7 @@ export default {
 
                 if (blocks.length === 0) {
                     Logger.warn(`No ${task.blockName} found in inventory. Please add some to your inventory.`);
-
-                    // Wait a bit before checking again
-                    await new Promise(resolve => setTimeout(resolve, 500)); // Reduced from 1000ms
+                    await new Promise(resolve => setTimeout(resolve, 500));
                     continue;
                 }
 
@@ -365,54 +358,43 @@ export default {
                 if (!placePosition) {
                     Logger.warn('Could not find a suitable place to put the block');
                     task.stats.failed++;
-
-                    // Try to move to a different location
                     await this.moveToNewLocation(bot, 3);
-
-                    // Wait a bit before retrying
-                    await new Promise(resolve => setTimeout(resolve, 250)); // Reduced from 500ms
+                    await new Promise(resolve => setTimeout(resolve, 250));
                     continue;
                 }
 
-                // Add a small delay before placing (100-200ms) - Reduced from 300-600ms
-                await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 100));
+                // Add a small delay before placing (50-100ms)
+                await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 50));
 
                 // Place the block - OPTIMIZED FOR SPEED
                 const success = await this.placeBlockFast(bot, blocks[0], placePosition);
 
                 if (!success) {
                     task.stats.failed++;
-
-                    // If we've failed multiple times, try moving to a new location
                     if (task.stats.failed % 3 === 0) {
                         await this.moveToNewLocation(bot, 5);
                     }
-
-                    // Wait a bit before retrying
-                    await new Promise(resolve => setTimeout(resolve, 250)); // Reduced from 500ms
+                    await new Promise(resolve => setTimeout(resolve, 250));
                     continue;
                 }
 
                 task.stats.placed++;
                 task.placedBlock = placePosition;
 
-                // Add a small delay before breaking (150-300ms) - Reduced from 400-800ms
-                await new Promise(resolve => setTimeout(resolve, 150 + Math.random() * 150));
+                // Add a small delay before breaking (75-125ms)
+                await new Promise(resolve => setTimeout(resolve, 75 + Math.random() * 50));
 
                 // Break the block - OPTIMIZED FOR SPEED
                 const brokenSuccess = await this.breakBlockFast(bot, placePosition);
 
                 if (brokenSuccess) {
                     task.stats.broken++;
-
-                    // Increment counter
                     task.currentCount++;
 
-                    // Only log progress at intervals or if logging is enabled
                     const shouldLogProgress =
                         task.currentCount % task.progressUpdateInterval === 0 ||
                         task.currentCount === task.targetTimes ||
-                        (Date.now() - task.lastProgressUpdate) > 10000; // At least every 10 seconds
+                        (Date.now() - task.lastProgressUpdate) > 10000;
 
                     if (shouldLogProgress) {
                         const percentage = ((task.currentCount / task.targetTimes) * 100).toFixed(1);
@@ -422,25 +404,22 @@ export default {
                         Logger.debug(`BlockQuest progress: ${task.currentCount}/${task.targetTimes}`);
                     }
 
-                    // Add a shorter delay between cycles (200-400ms) - Reduced from 500-1000ms
-                    await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 200));
+                    // Add a shorter delay between cycles (100-200ms)
+                    await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 100));
                 } else {
                     task.stats.failed++;
                     Logger.warn('Failed to break the block, retrying...');
 
-                    // If we've failed to break multiple times, try moving to a new location
                     if (task.stats.failed % 3 === 0) {
                         await this.moveToNewLocation(bot, 5);
                     }
 
-                    // Wait a bit before retrying
-                    await new Promise(resolve => setTimeout(resolve, 400)); // Reduced from 800ms
+                    await new Promise(resolve => setTimeout(resolve, 400));
                 }
             } catch (error) {
                 Logger.error(`Error in BlockQuest cycle: ${error.message}`);
                 task.stats.failed++;
-                // Wait a bit before retrying
-                await new Promise(resolve => setTimeout(resolve, 500)); // Reduced from 1000ms
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
         }
 
@@ -457,13 +436,9 @@ export default {
                 return false;
             }
 
-            // Create a goal to move to the position
             const goal = new goals.GoalNear(position.x, position.y, position.z, 1);
-
-            // Set the goal
             bot.pathfinder.setGoal(goal);
 
-            // Wait for the bot to reach the goal or timeout
             await new Promise((resolve) => {
                 const checkInterval = setInterval(() => {
                     if (!bot.pathfinder.isMoving()) {
@@ -471,13 +446,13 @@ export default {
                         clearTimeout(timeoutId);
                         resolve();
                     }
-                }, 200); // Reduced from 300ms
+                }, 200);
 
                 const timeoutId = setTimeout(() => {
                     clearInterval(checkInterval);
                     bot.pathfinder.stop();
                     resolve();
-                }, 2000); // Reduced from 3000ms (3 second timeout)
+                }, 2000);
             });
 
             return true;
@@ -490,22 +465,16 @@ export default {
     },
 
     async findPlacePosition(bot, radius) {
-        // Get the bot's position
         const botPos = bot.entity.position.clone();
 
-        // First try positions very close to the bot for faster placement
+        // First try positions very close to the bot
         for (let r = 1; r <= 2; r++) {
-            // Try positions at the current radius
             for (let x = -r; x <= r; x++) {
                 for (let z = -r; z <= r; z++) {
-                    // Only check positions at the current radius (perimeter)
                     if (Math.abs(x) !== r && Math.abs(z) !== r) continue;
 
-                    // Check positions at different heights
                     for (let y = -1; y <= 1; y++) {
                         const pos = botPos.clone().add(new Vec3(x, y, z));
-
-                        // Check if this position is suitable for placing a block
                         if (await this.isSuitableForPlacement(bot, pos)) {
                             return pos;
                         }
@@ -516,34 +485,15 @@ export default {
 
         // If we couldn't find a close position, try a wider search
         for (let r = 3; r <= radius; r++) {
-            // Try positions at the current radius
             for (let x = -r; x <= r; x++) {
                 for (let z = -r; z <= r; z++) {
-                    // Only check positions at the current radius (perimeter)
                     if (Math.abs(x) !== r && Math.abs(z) !== r) continue;
 
-                    // Check positions at different heights
                     for (let y = -1; y <= 1; y++) {
                         const pos = botPos.clone().add(new Vec3(x, y, z));
-
-                        // Check if this position is suitable for placing a block
                         if (await this.isSuitableForPlacement(bot, pos)) {
                             return pos;
                         }
-                    }
-                }
-            }
-        }
-
-        // If we still couldn't find a position, try a more thorough search
-        for (let x = -radius; x <= radius; x++) {
-            for (let z = -radius; z <= radius; z++) {
-                for (let y = -1; y <= 1; y++) {
-                    const pos = botPos.clone().add(new Vec3(x, y, z));
-
-                    // Check if this position is suitable for placing a block
-                    if (await this.isSuitableForPlacement(bot, pos)) {
-                        return pos;
                     }
                 }
             }
@@ -554,30 +504,23 @@ export default {
 
     async isSuitableForPlacement(bot, position) {
         try {
-            // Check if the position is air or water (we now allow water for placement)
             const block = bot.blockAt(position);
-            if (!block) {
-                return false;
-            }
+            if (!block) return false;
 
-            // Allow air or water for placement
             if (block.name !== 'air' && block.name !== 'water') {
                 return false;
             }
 
-            // Check if there's a solid block below (including underwater blocks)
             const blockBelow = bot.blockAt(position.clone().add(new Vec3(0, -1, 0)));
             if (!blockBelow || blockBelow.name === 'air' || blockBelow.name === 'lava') {
                 return false;
             }
 
-            // Check if the bot can reach this position
             const canSee = bot.canSeeBlock(blockBelow);
             if (!canSee) {
                 return false;
             }
 
-            // Check if the position is within reach distance (increased to 4 for faster placement)
             const distance = VectorUtils.euclideanDistance(bot.entity.position, position);
             if (distance > 4) {
                 return false;
@@ -594,7 +537,6 @@ export default {
 
     async placeBlockFast(bot, blockItem, position) {
         try {
-            // Find the block we're placing against (the one below)
             const referenceBlock = bot.blockAt(position.clone().add(new Vec3(0, -1, 0)));
 
             if (!referenceBlock) {
@@ -602,19 +544,10 @@ export default {
                 return false;
             }
 
-            // Equip the block
             await bot.equip(blockItem, 'hand');
-
-            // Reduced delay after equipping (50-100ms) - Was 100-200ms
-            await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 50));
-
-            // Look at the placement position - with a small delay
+            await new Promise(resolve => setTimeout(resolve, 50));
             await bot.lookAt(position, false);
-
-            // Reduced delay after looking (75-125ms) - Was 150-250ms
-            await new Promise(resolve => setTimeout(resolve, 75 + Math.random() * 50));
-
-            // Place the block
+            await new Promise(resolve => setTimeout(resolve, 50));
             await bot.placeBlock(referenceBlock, new Vec3(0, 1, 0));
 
             if (bot.blockQuestLogging) {
@@ -629,7 +562,6 @@ export default {
 
     async breakBlockFast(bot, position) {
         try {
-            // Get the block at the position
             const block = bot.blockAt(position);
 
             if (!block || block.name === 'air') {
@@ -637,22 +569,15 @@ export default {
                 return false;
             }
 
-            // Look at the block - with a small delay
             await bot.lookAt(position.clone().add(new Vec3(0.5, 0.5, 0.5)), false);
+            await new Promise(resolve => setTimeout(resolve, 50));
 
-            // Reduced delay after looking (75-125ms) - Was 150-250ms
-            await new Promise(resolve => setTimeout(resolve, 75 + Math.random() * 50));
-
-            // Equip the best tool for the job
             const tool = InventoryUtils.findBestTool(bot, block);
             if (tool) {
                 await bot.equip(tool, 'hand');
-
-                // Reduced delay after equipping (50-100ms) - Was 100-200ms
-                await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 50));
+                await new Promise(resolve => setTimeout(resolve, 50));
             }
 
-            // Dig the block with faster speed
             await bot.dig(block, true, 'raycast');
 
             if (bot.blockQuestLogging) {
@@ -672,22 +597,16 @@ export default {
                 return false;
             }
 
-            // Get a random direction
             const angle = Math.random() * Math.PI * 2;
             const dx = Math.cos(angle) * distance;
             const dz = Math.sin(angle) * distance;
 
-            // Calculate target position
             const currentPos = bot.entity.position;
             const targetPos = currentPos.clone().add(new Vec3(dx, 0, dz));
 
-            // Create a goal to move to the new position
             const goal = new goals.GoalNear(targetPos.x, targetPos.y, targetPos.z, 1);
-
-            // Set the goal
             bot.pathfinder.setGoal(goal);
 
-            // Wait for the bot to reach the goal or timeout
             await new Promise((resolve) => {
                 const checkInterval = setInterval(() => {
                     if (!bot.pathfinder.isMoving()) {
@@ -695,17 +614,16 @@ export default {
                         clearTimeout(timeoutId);
                         resolve();
                     }
-                }, 200); // Reduced from 300ms
+                }, 200);
 
                 const timeoutId = setTimeout(() => {
                     clearInterval(checkInterval);
                     bot.pathfinder.stop();
                     resolve();
-                }, 2000); // Reduced from 3000ms
+                }, 2000);
             });
 
-            // Reduced delay after moving (150-300ms) - Was 300-600ms
-            await new Promise(resolve => setTimeout(resolve, 150 + Math.random() * 150));
+            await new Promise(resolve => setTimeout(resolve, 150));
 
             if (bot.blockQuestLogging) {
                 Logger.debug(`Moved to new location for better block placement`);
@@ -718,14 +636,11 @@ export default {
     },
 
     generatePossibleBlockNames(blockName) {
-        // Generate variations of the block name to improve matching
         const variations = [blockName];
 
-        // Common misspellings and variations
         if (blockName.includes('_')) {
             variations.push(blockName.replace(/_/g, ''));
         } else {
-            // Try adding underscores between words
             for (let i = 1; i < blockName.length; i++) {
                 if (
                     (blockName[i] >= 'A' && blockName[i] <= 'Z') ||
@@ -738,19 +653,16 @@ export default {
             }
         }
 
-        // Handle common block name patterns
         if (blockName.endsWith('_block')) {
             variations.push(blockName.replace('_block', ''));
         } else {
             variations.push(blockName + '_block');
         }
 
-        // Handle ore blocks
         if (blockName.endsWith('_ore')) {
             variations.push(blockName.replace('_ore', ''));
         }
 
-        // Handle common misspellings
         const commonMisspellings = {
             'emerald': 'emereld',
             'emereld': 'emerald',
@@ -766,27 +678,21 @@ export default {
             'log': 'wood'
         };
 
-        // Add misspelling variations
         for (const [correct, misspelled] of Object.entries(commonMisspellings)) {
             if (blockName.includes(correct)) {
                 variations.push(blockName.replace(correct, misspelled));
             }
         }
 
-        // Remove duplicates and return
         return [...new Set(variations)];
     },
 
     scanInventoryForBlocks(bot) {
-        // This is a fallback method to find blocks in inventory when name matching fails
         if (!bot.inventory) return [];
 
-        // Get all items that are likely to be blocks
         return bot.inventory.items().filter(item => {
-            // Most blocks have "block" in their name
             if (item.name.includes('block')) return true;
 
-            // Many blocks end with specific materials
             if (item.name.endsWith('stone') ||
                 item.name.endsWith('wood') ||
                 item.name.endsWith('planks') ||
@@ -798,7 +704,6 @@ export default {
                 return true;
             }
 
-            // Check if the item is placeable (has a "place" function)
             return item.name.startsWith('minecraft:') && !item.name.includes('sword') &&
                 !item.name.includes('pickaxe') && !item.name.includes('axe') &&
                 !item.name.includes('shovel') && !item.name.includes('hoe');

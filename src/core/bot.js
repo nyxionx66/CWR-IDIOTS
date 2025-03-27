@@ -14,6 +14,7 @@ import { CommandManager } from '../commands/command-manager.js';
 import { PlannedCommandManager } from './planned-command-manager.js';
 import { commands } from '../commands/index.js';
 import { Logger } from '../utils/logger.js';
+import { generateRandomUsername } from '../utils/name-generator.js';
 
 export class HuminiBot {
   constructor(botId = 'default', customConfig = null) {
@@ -51,10 +52,17 @@ export class HuminiBot {
     const botConfig = this.config.bot;
 
     try {
+      // Generate random username if enabled
+      let username = botConfig.username;
+      if (botConfig.useRandomUsername) {
+        username = generateRandomUsername();
+        Logger.info(`Using random username: ${username}`);
+      }
+
       this.bot = mineflayer.createBot({
         host: botConfig.host,
         port: botConfig.port,
-        username: botConfig.username,
+        username: username,
         version: botConfig.version,
         auth: 'offline',
         hideErrors: false,
@@ -67,7 +75,7 @@ export class HuminiBot {
 
       // Only log connection info for default bot or when not in quiet mode
       if (this.botId === 'default' || !this.config.quietMode) {
-        Logger.info(`Bot ${this.botId} connecting to ${botConfig.host}:${botConfig.port} as ${botConfig.username}`);
+        Logger.info(`Bot ${this.botId} connecting to ${botConfig.host}:${botConfig.port} as ${username}`);
       }
 
       this.bot.on('error', (err) => {
